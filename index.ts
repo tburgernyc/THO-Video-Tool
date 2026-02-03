@@ -23,7 +23,7 @@ app.use(express.json({ limit: '50mb' }) as any);
 app.use('/outputs', express.static(OUTPUT_DIR) as any);
 
 // Status Endpoint
-app.get('/api/status', async (req, res) => {
+app.get('/api/status', async (_req, res) => {
   let dbOk = true;
   let genOk = false;
   let gpu = false;
@@ -52,7 +52,7 @@ app.post('/api/episodes', (req, res) => {
   res.json({ episode: { id: info.lastInsertRowid, title, script } });
 });
 
-app.get('/api/episodes/latest', (req, res) => {
+app.get('/api/episodes/latest', (_req, res) => {
   const ep: any = db.prepare('SELECT * FROM episodes ORDER BY id DESC LIMIT 1').get();
   if (!ep) return res.status(404).json({ error: 'No episodes' });
   // @ts-ignore
