@@ -15,12 +15,19 @@ export default defineConfig({
     },
   },
   server: {
-    host: '0.0.0.0', // Listen on all network interfaces
+    host: '0.0.0.0',
     port: 5173,
-    strictPort: true, // Fail if port is in use
-    watch: {
-      usePolling: true,
-    },
+    strictPort: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+      '/outputs': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      }
+    }
   },
   build: {
     outDir: '../../dist/web',

@@ -1,0 +1,7 @@
+{
+  "name": "human-override-generator",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "uvicorn main:app --reload --port 8000 --app-dir ."
+  }
+}
