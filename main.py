@@ -54,6 +54,24 @@ def cleanup_job_store():
 # In-memory version cache to avoid O(N) directory scans
 version_cache = {}
 
+def get_next_version(ep_dir: str, scene_id: int) -> int:
+    """
+    Efficiently determines the next version number for a scene using os.scandir.
+    """
+    count = 0
+    prefix = f"scene{scene_id}_"
+    suffix = ".mp4"
+
+    try:
+        with os.scandir(ep_dir) as entries:
+            for entry in entries:
+                if entry.name.startswith(prefix) and entry.name.endswith(suffix):
+                    count += 1
+    except FileNotFoundError:
+        return 1
+
+    return count + 1
+
 def process_video_generation(job_id: str, prompt: str, neg_prompt: str, ep_dir: str, scene_id: int, version: int, image_base64: Optional[str] = None):
     """
     Background task to handle video generation without blocking the API.
@@ -196,8 +214,7 @@ def generate(req: GenerateRequest, background_tasks: BackgroundTasks):
         version_cache[cache_key] += 1
         version = version_cache[cache_key]
     else:
-        existing = [f for f in os.listdir(ep_dir) if f.startswith(f"scene{req.scene_id}_") and f.endswith(".mp4")]
-        version = len(existing) + 1
+        version = get_next_version(ep_dir, req.scene_id)
         version_cache[cache_key] = version
     
     # Initialize Job
