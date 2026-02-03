@@ -36,23 +36,65 @@ MAX_JOBS = int(os.environ.get("MAX_JOBS", 100))
 
 def cleanup_job_store():
     """
-    Limits the size of the in-memory job store by removing old completed/failed jobs.
+    Limits the size of the in-memory job store by removing old completed/failed jobs
+    and enforcing a Time-To-Live (TTL) for all jobs.
     """
-    if len(jobs) < MAX_JOBS:
-        return
+    current_time = time.time()
+    # 1 hour TTL
+    TTL = 3600
 
-    # Identify candidates for removal (completed or failed)
-    # Since jobs are added in order, this list will be ordered by insertion time (oldest first)
-    candidates = [k for k, v in jobs.items() if v.get("status") in ["completed", "failed"]]
+    with jobs_lock:
+        keys_to_remove = []
+        scan_limit = 200 # Limit scan to avoid O(N) on large stores
+        scanned = 0
 
-    # Remove candidates until we are under the limit
-    for job_id in candidates:
-        if len(jobs) < MAX_JOBS:
-            break
-        jobs.pop(job_id, None)
+        # Iterate over jobs (insertion ordered) to find oldest candidates
+        for job_id, job in jobs.items():
+            scanned += 1
+
+            created_at = job.get("created_at", 0)
+            age = current_time - created_at
+
+            is_expired = age > TTL
+            is_finished = job.get("status") in ["completed", "failed"]
+
+            # Remove if expired OR (over limit AND finished)
+            if is_expired:
+                keys_to_remove.append(job_id)
+            elif len(jobs) - len(keys_to_remove) >= MAX_JOBS and is_finished:
+                keys_to_remove.append(job_id)
+
+            # Stop if we are under the limit AND current job is not expired
+            # (Since jobs are ordered by time, subsequent jobs will also be younger)
+            if len(jobs) - len(keys_to_remove) < MAX_JOBS and not is_expired:
+                break
+
+            if scanned >= scan_limit:
+                break
+
+        for k in keys_to_remove:
+            jobs.pop(k, None)
 
 # In-memory version cache to avoid O(N) directory scans
 version_cache = {}
+
+def get_next_version(ep_dir: str, scene_id: int) -> int:
+    """
+    Efficiently determines the next version number for a scene using os.scandir.
+    """
+    count = 0
+    prefix = f"scene{scene_id}_"
+    suffix = ".mp4"
+
+    try:
+        with os.scandir(ep_dir) as entries:
+            for entry in entries:
+                if entry.name.startswith(prefix) and entry.name.endswith(suffix):
+                    count += 1
+    except FileNotFoundError:
+        return 1
+
+    return count + 1
 
 def process_video_generation(job_id: str, prompt: str, neg_prompt: str, ep_dir: str, scene_id: int, version: int, image_base64: Optional[str] = None):
     """
@@ -196,19 +238,20 @@ def generate(req: GenerateRequest, background_tasks: BackgroundTasks):
         version_cache[cache_key] += 1
         version = version_cache[cache_key]
     else:
-        existing = [f for f in os.listdir(ep_dir) if f.startswith(f"scene{req.scene_id}_") and f.endswith(".mp4")]
-        version = len(existing) + 1
+        version = get_next_version(ep_dir, req.scene_id)
         version_cache[cache_key] = version
     
     # Initialize Job
-    jobs[job_id] = {
-        "id": job_id,
-        "sceneId": req.scene_id,
-        "episode_id": req.episode_id,
-        "status": "queued",
-        "progress": 0,
-        "version": version
-    }
+    with jobs_lock:
+        jobs[job_id] = {
+            "id": job_id,
+            "sceneId": req.scene_id,
+            "episode_id": req.episode_id,
+            "status": "queued",
+            "progress": 0,
+            "version": version,
+            "created_at": time.time()
+        }
     
     # Offload to Background Task
     background_tasks.add_task(
