@@ -29,6 +29,25 @@ class GenerateRequest(BaseModel):
 # In-memory job store (Use Redis for production)
 jobs = {}
 
+MAX_JOBS = int(os.environ.get("MAX_JOBS", 100))
+
+def cleanup_job_store():
+    """
+    Limits the size of the in-memory job store by removing old completed/failed jobs.
+    """
+    if len(jobs) < MAX_JOBS:
+        return
+
+    # Identify candidates for removal (completed or failed)
+    # Since jobs are added in order, this list will be ordered by insertion time (oldest first)
+    candidates = [k for k, v in jobs.items() if v.get("status") in ["completed", "failed"]]
+
+    # Remove candidates until we are under the limit
+    for job_id in candidates:
+        if len(jobs) < MAX_JOBS:
+            break
+        jobs.pop(job_id, None)
+
 def process_video_generation(job_id: str, prompt: str, neg_prompt: str, ep_dir: str, scene_id: int, version: int, image_base64: Optional[str] = None):
     """
     Background task to handle video generation without blocking the API.
@@ -148,6 +167,7 @@ def health():
 
 @app.post("/generate")
 def generate(req: GenerateRequest, background_tasks: BackgroundTasks):
+    cleanup_job_store()
     job_id = str(uuid.uuid4())
     
     # Create Episode Directory
