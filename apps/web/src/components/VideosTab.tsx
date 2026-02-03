@@ -20,6 +20,11 @@ export const VideosTab: React.FC<Props> = ({ scenes, episodeId }) => {
         .filter(j => ['queued', 'running'].includes(j.status))
         .map(j => j.id);
 
+      // Also allow polling for recently started jobs even if not in state yet?
+      // Actually we only poll jobs we know about or if we reload we might lose them from state.
+      // Ideally we should fetch all active jobs for the episode on mount.
+      // For now, we stick to state-based polling.
+
       if (activeJobIds.length === 0) return;
 
       for (const jid of activeJobIds) {
@@ -74,6 +79,15 @@ export const VideosTab: React.FC<Props> = ({ scenes, episodeId }) => {
     }
   };
 
+  const handleCancel = async (jobId: string) => {
+    try {
+        await fetch(`${API_URL}/jobs/${jobId}/cancel`, { method: 'POST' });
+        // Status update will come from poll
+    } catch (e) {
+        alert("Failed to cancel job");
+    }
+  };
+
   if (!scenes.length) return <div className="p-8 text-center text-gray-500">No scenes available.</div>;
 
   return (
@@ -85,9 +99,6 @@ export const VideosTab: React.FC<Props> = ({ scenes, episodeId }) => {
           const job = jobs[scene.id];
           const hasVideo = !job && scene.latest_version && scene.latest_version > 0;
           
-          // Logic for video URL:
-          // 1. If we have a persistent video in DB (hasVideo), use standard schema.
-          // 2. If we have a newly completed job, use its output_path (which already contains episodeId/filename).
           const videoUrl = hasVideo 
             ? `${ASSETS_URL}/${episodeId}/scene${scene.id}_v${scene.latest_version}.mp4` 
             : (job?.output_path ? `${ASSETS_URL}/${job.output_path}` : null);
@@ -96,12 +107,12 @@ export const VideosTab: React.FC<Props> = ({ scenes, episodeId }) => {
             <div key={scene.id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden flex flex-col md:flex-row">
               {/* Controls Section */}
               <div className="p-5 flex-1 space-y-4">
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                    <h3 className="font-bold text-lg text-gray-800">Scene {scene.id}</h3>
                    {job?.status && (
                      <span className={`text-xs px-2 py-1 rounded uppercase font-bold ${
                        job.status === 'completed' ? 'bg-green-100 text-green-700' :
-                       job.status === 'failed' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+                       job.status === 'failed' || job.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
                      }`}>
                        {job.status}
                      </span>
@@ -123,17 +134,27 @@ export const VideosTab: React.FC<Props> = ({ scenes, episodeId }) => {
                       className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                     />
                   </div>
-                  <button 
-                    onClick={() => handleGenerate(scene)}
-                    disabled={!scene.prompt || (job && ['running','queued'].includes(job.status))}
-                    className="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {job && ['running','queued'].includes(job.status) ? 'Processing...' : (videoUrl ? 'Regenerate' : 'Generate')}
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                        onClick={() => handleGenerate(scene)}
+                        disabled={!scene.prompt || (job && ['running','queued'].includes(job.status))}
+                        className="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {job && ['running','queued'].includes(job.status) ? 'Processing...' : (videoUrl ? 'Regenerate' : 'Generate')}
+                    </button>
+                    {job && ['running','queued'].includes(job.status) && (
+                        <button
+                            onClick={() => handleCancel(job.id)}
+                            className="px-3 py-2 bg-red-100 text-red-700 text-sm font-medium rounded hover:bg-red-200"
+                        >
+                            Cancel
+                        </button>
+                    )}
+                  </div>
                 </div>
-                {job?.error && (
+                {(job?.error || job?.status === 'failed') && (
                    <div className="text-xs text-red-600 bg-red-50 p-2 rounded border border-red-100 mt-2">
-                     Error: {job.error}
+                     Error: {job.error || "Generation failed"}
                    </div>
                 )}
               </div>
