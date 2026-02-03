@@ -202,9 +202,13 @@ app.post('/api/jobs', validate(JobRequestSchema), async (req, res) => {
 });
 
 app.get('/api/jobs/:id', async (req, res) => {
-    const job = db.prepare('SELECT * FROM jobs WHERE id = ?').get(req.params.id);
+    const job: any = db.prepare('SELECT * FROM jobs WHERE id = ?').get(req.params.id);
     if (!job) return res.status(404).json({error: 'Job not found'});
-    res.json(job);
+    res.json({
+        ...job,
+        sceneId: job.scene_id,
+        episodeId: job.episode_id
+    });
 });
 
 app.post('/api/jobs/:id/cancel', async (req, res) => {
