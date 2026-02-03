@@ -10,7 +10,7 @@ import fs from 'fs';
 const app = express();
 const PORT = process.env.PORT || 3000;
 const GENERATOR_URL = process.env.GENERATOR_URL || 'http://localhost:8000';
-const OUTPUT_DIR = path.resolve((process as any).cwd(), '../../outputs');
+const OUTPUT_DIR = process.env.OUTPUT_DIR ? path.resolve(process.env.OUTPUT_DIR) : path.resolve((process as any).cwd(), '../../outputs');
 
 // Ensure output directory exists before serving
 if (!fs.existsSync(OUTPUT_DIR)) {
@@ -151,6 +151,41 @@ app.post('/api/jobs', async (req, res) => {
     res.json(genData);
   } catch (e: any) {
     res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/jobs/batch', async (req, res) => {
+  const { jobIds } = req.body;
+  if (!Array.isArray(jobIds)) return res.status(400).json({ error: 'jobIds must be an array' });
+
+  try {
+    const r = await fetch(`${GENERATOR_URL}/jobs/batch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job_ids: jobIds })
+    });
+    if (!r.ok) throw new Error('Generator failed');
+    const jobsData: any[] = await r.json();
+
+    const updateScene = db.prepare('UPDATE scenes SET latest_version = ? WHERE episode_id = ? AND scene_index = ?');
+    const updateJob = db.prepare('UPDATE jobs SET status = ?, output_path = ? WHERE id = ?');
+
+    db.transaction(() => {
+       for (const data of jobsData) {
+         if (data && data.status === 'completed' && data.output_path) {
+            const match = data.output_path.match(/_v(\d+)\.mp4$/);
+            const ver = match ? parseInt(match[1]) : 1;
+
+            updateScene.run(ver, data.episode_id, data.sceneId);
+            updateJob.run('completed', data.output_path, data.id);
+         }
+       }
+    })();
+
+    res.json(jobsData);
+  } catch (e: any) {
+    console.error("Batch fetch error", e);
+    res.status(500).json({ error: 'Batch fetch failed' });
   }
 });
 

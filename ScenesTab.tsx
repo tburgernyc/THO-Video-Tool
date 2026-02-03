@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Scene } from '../types';
-import { API_URL } from '../config';
+import { Scene } from './types';
+import { API_URL } from './config';
 
 interface Props {
   scenes: Scene[];
