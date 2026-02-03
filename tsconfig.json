@@ -20,6 +20,7 @@
       "@/*": ["src/*"]
     }
   },
-  "include": ["."],
+  "include": ["src", "index.ts", "db.ts", "geminiService.ts"],
+  "exclude": ["node_modules", "dist", "outputs", "vite.config.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

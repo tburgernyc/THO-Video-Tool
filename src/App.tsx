@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { ConfigTab } from './components/ConfigTab';
 import { ScriptTab } from './components/ScriptTab';
 import { CharactersTab } from './components/CharactersTab';
