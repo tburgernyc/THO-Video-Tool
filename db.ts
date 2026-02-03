@@ -1,9 +1,12 @@
 import Database from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-// Fix process.cwd for monorepo context
-const dbPath = process.env.DB_PATH || path.join((process as any).cwd(), 'data', 'studio.sqlite3');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const dbPath = process.env.DB_PATH || path.join(__dirname, 'data', 'studio.sqlite3');
 const dir = path.dirname(dbPath);
 if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 

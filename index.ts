@@ -6,11 +6,15 @@ import db from './db';
 import { analyzeScript, generateScenePrompts } from './geminiService';
 import path from 'path';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const GENERATOR_URL = process.env.GENERATOR_URL || 'http://localhost:8000';
-const OUTPUT_DIR = path.resolve((process as any).cwd(), '../../outputs');
+const OUTPUT_DIR = path.resolve(__dirname, '../../outputs');
 
 // Ensure output directory exists before serving
 if (!fs.existsSync(OUTPUT_DIR)) {
@@ -195,10 +199,27 @@ app.get('/api/jobs/:id', async (req, res) => {
         const ver = match ? parseInt(match[1]) : 1;
         
         // CRITICAL FIX: Update based on episode_id AND scene_index
-        db.prepare('UPDATE scenes SET latest_version = ? WHERE episode_id = ? AND scene_index = ?')
-          .run(ver, data.episode_id, data.sceneId);
+        if (data.episode_id !== undefined && data.sceneId !== undefined) {
+          db.prepare('UPDATE scenes SET latest_version = ? WHERE episode_id = ? AND scene_index = ?')
+            .run(ver, data.episode_id, data.sceneId);
+        } else {
+          console.error(`[Job ${req.params.id}] Missing episode_id or sceneId in generator response. Update skipped.`);
+        }
           
         db.prepare('UPDATE jobs SET status = ?, output_path = ? WHERE id = ?').run('completed', data.output_path, req.params.id);
+        const currentJob = db.prepare('SELECT status FROM jobs WHERE id = ?').get(req.params.id) as any;
+
+        if (!currentJob || currentJob.status !== 'completed') {
+            // Parse version from filename roughly (sceneX_vY.mp4)
+            const match = data.output_path.match(/_v(\d+)\.mp4$/);
+            const ver = match ? parseInt(match[1]) : 1;
+
+            // CRITICAL FIX: Update based on episode_id AND scene_index
+            db.prepare('UPDATE scenes SET latest_version = ? WHERE episode_id = ? AND scene_index = ?')
+              .run(ver, data.episode_id, data.sceneId);
+
+            db.prepare('UPDATE jobs SET status = ?, output_path = ? WHERE id = ?').run('completed', data.output_path, req.params.id);
+        }
     }
     
     res.json(data);
