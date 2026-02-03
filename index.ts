@@ -164,7 +164,6 @@ app.get('/api/jobs/:id', async (req, res) => {
         const match = data.output_path.match(/_v(\d+)\.mp4$/);
         const ver = match ? parseInt(match[1]) : 1;
         
-        // CRITICAL FIX: Update based on episode_id AND scene_index
         db.prepare('UPDATE scenes SET latest_version = ? WHERE episode_id = ? AND scene_index = ?')
           .run(ver, data.episode_id, data.sceneId);
           
