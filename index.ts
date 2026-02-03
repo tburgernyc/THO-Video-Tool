@@ -160,6 +160,19 @@ app.get('/api/jobs/:id', async (req, res) => {
     const data: any = await r.json();
     
     if (data.status === 'completed' && data.output_path) {
+        // Parse version from filename roughly (sceneX_vY.mp4)
+        const match = data.output_path.match(/_v(\d+)\.mp4$/);
+        const ver = match ? parseInt(match[1]) : 1;
+        
+        // CRITICAL FIX: Update based on episode_id AND scene_index
+        if (data.episode_id !== undefined && data.sceneId !== undefined) {
+          db.prepare('UPDATE scenes SET latest_version = ? WHERE episode_id = ? AND scene_index = ?')
+            .run(ver, data.episode_id, data.sceneId);
+        } else {
+          console.error(`[Job ${req.params.id}] Missing episode_id or sceneId in generator response. Update skipped.`);
+        }
+          
+        db.prepare('UPDATE jobs SET status = ?, output_path = ? WHERE id = ?').run('completed', data.output_path, req.params.id);
         const currentJob = db.prepare('SELECT status FROM jobs WHERE id = ?').get(req.params.id) as any;
 
         if (!currentJob || currentJob.status !== 'completed') {
