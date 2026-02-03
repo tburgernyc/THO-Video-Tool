@@ -155,7 +155,7 @@ app.post('/api/episodes/:id/prompts', async (req, res) => {
 });
 
 // Jobs
-app.post('/api/jobs', async (req, res) => {
+app.post('/api/jobs/video', async (req, res) => {
   const { episodeId, sceneId, prompt, negativePrompt, imageBase64 } = req.body;
   
   try {

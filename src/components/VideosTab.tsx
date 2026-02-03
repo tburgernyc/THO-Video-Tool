@@ -56,7 +56,7 @@ export const VideosTab: React.FC<Props> = ({ scenes, episodeId }) => {
     }
 
     try {
-      const res = await fetch(`${API_URL}/jobs`, {
+      const res = await fetch(`${API_URL}/jobs/video`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
