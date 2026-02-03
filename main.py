@@ -1,5 +1,6 @@
 import os
 import shutil
+import threading
 import uuid
 import time
 import base64
@@ -28,6 +29,8 @@ class GenerateRequest(BaseModel):
 
 # In-memory job store (Use Redis for production)
 jobs = {}
+active_jobs_count = 0
+jobs_lock = threading.Lock()
 
 MAX_JOBS = int(os.environ.get("MAX_JOBS", 100))
 
@@ -52,7 +55,11 @@ def process_video_generation(job_id: str, prompt: str, neg_prompt: str, ep_dir: 
     """
     Background task to handle video generation without blocking the API.
     """
-    jobs[job_id]["status"] = "running"
+    global active_jobs_count
+    with jobs_lock:
+        jobs[job_id]["status"] = "running"
+        active_jobs_count += 1
+
     filename = f"scene{scene_id}_v{version}.mp4"
     dest_path = os.path.join(ep_dir, filename)
     
@@ -119,7 +126,9 @@ def process_video_generation(job_id: str, prompt: str, neg_prompt: str, ep_dir: 
             # Save to final destination
             shutil.move(video_path, dest_path)
             
-            jobs[job_id]["status"] = "completed"
+            with jobs_lock:
+                jobs[job_id]["status"] = "completed"
+                active_jobs_count -= 1
             jobs[job_id]["output_path"] = f"{jobs[job_id]['episode_id']}/{filename}"
             jobs[job_id]["progress"] = 100
             print(f"[Job {job_id}] Completed successfully: {dest_path}")
@@ -133,13 +142,17 @@ def process_video_generation(job_id: str, prompt: str, neg_prompt: str, ep_dir: 
             with open(dest_path, "wb") as f:
                 f.write(b'\x00' * 1024) 
                 
-            jobs[job_id]["status"] = "completed"
+            with jobs_lock:
+                jobs[job_id]["status"] = "completed"
+                active_jobs_count -= 1
             jobs[job_id]["output_path"] = f"{jobs[job_id]['episode_id']}/{filename}"
             jobs[job_id]["error"] = f"Generated offline placeholder (Remote: {str(api_error)})"
 
     except Exception as e:
         print(f"[Job {job_id}] Fatal error: {e}")
-        jobs[job_id]["status"] = "failed"
+        with jobs_lock:
+            jobs[job_id]["status"] = "failed"
+            active_jobs_count -= 1
         jobs[job_id]["error"] = str(e)
     finally:
         # Cleanup temp image
@@ -162,7 +175,7 @@ def health():
         "status": "ok",
         "cuda_available": torch.cuda.is_available() if torch.cuda.is_available() else False,
         "disk_free": free_gb,
-        "active_jobs": len([j for j in jobs.values() if j['status'] == 'running'])
+        "active_jobs": active_jobs_count
     }
 
 @app.post("/generate")
