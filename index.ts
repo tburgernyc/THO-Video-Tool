@@ -6,11 +6,15 @@ import db from './db';
 import { analyzeScript, generateScenePrompts } from './geminiService';
 import path from 'path';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const GENERATOR_URL = process.env.GENERATOR_URL || 'http://localhost:8000';
-const OUTPUT_DIR = path.resolve((process as any).cwd(), '../../outputs');
+const OUTPUT_DIR = path.resolve(__dirname, '../../outputs');
 
 // Ensure output directory exists before serving
 if (!fs.existsSync(OUTPUT_DIR)) {
