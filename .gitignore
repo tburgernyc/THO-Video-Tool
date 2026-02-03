@@ -103,3 +103,8 @@ venv/
 .venv/
 env/
 .env/
+
+*.sqlite
+*.sqlite3
+database.sqlite
+/data/
