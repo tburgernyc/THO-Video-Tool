@@ -165,8 +165,12 @@ app.get('/api/jobs/:id', async (req, res) => {
         const ver = match ? parseInt(match[1]) : 1;
         
         // CRITICAL FIX: Update based on episode_id AND scene_index
-        db.prepare('UPDATE scenes SET latest_version = ? WHERE episode_id = ? AND scene_index = ?')
-          .run(ver, data.episode_id, data.sceneId);
+        if (data.episode_id !== undefined && data.sceneId !== undefined) {
+          db.prepare('UPDATE scenes SET latest_version = ? WHERE episode_id = ? AND scene_index = ?')
+            .run(ver, data.episode_id, data.sceneId);
+        } else {
+          console.error(`[Job ${req.params.id}] Missing episode_id or sceneId in generator response. Update skipped.`);
+        }
           
         db.prepare('UPDATE jobs SET status = ?, output_path = ? WHERE id = ?').run('completed', data.output_path, req.params.id);
     }
