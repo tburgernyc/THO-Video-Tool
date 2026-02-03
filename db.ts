@@ -39,6 +39,16 @@ db.exec(`
     FOREIGN KEY(episode_id) REFERENCES episodes(id)
   );
 
+  CREATE TABLE IF NOT EXISTS scene_characters (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    episode_id INTEGER,
+    scene_id INTEGER,
+    name TEXT,
+    FOREIGN KEY(episode_id) REFERENCES episodes(id),
+    FOREIGN KEY(scene_id) REFERENCES scenes(id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_scene_characters_episode_id ON scene_characters(episode_id);
+
   CREATE TABLE IF NOT EXISTS jobs (
     id TEXT PRIMARY KEY,
     scene_id INTEGER,

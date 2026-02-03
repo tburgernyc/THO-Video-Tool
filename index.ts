@@ -53,16 +53,27 @@ app.post('/api/episodes', (req, res) => {
 });
 
 app.get('/api/episodes/latest', (req, res) => {
-  const ep = db.prepare('SELECT * FROM episodes ORDER BY id DESC LIMIT 1').get();
+  const ep: any = db.prepare('SELECT * FROM episodes ORDER BY id DESC LIMIT 1').get();
   if (!ep) return res.status(404).json({ error: 'No episodes' });
   // @ts-ignore
   const chars = db.prepare('SELECT * FROM characters WHERE episode_id = ?').all(ep.id);
+
+  const scenesRaw = db.prepare('SELECT * FROM scenes WHERE episode_id = ? ORDER BY scene_index').all(ep.id);
+  const sceneChars = db.prepare('SELECT scene_id, name FROM scene_characters WHERE episode_id = ?').all(ep.id);
+
+  const charMap = new Map<number, string[]>();
   // @ts-ignore
-  const scenes = db.prepare('SELECT * FROM scenes WHERE episode_id = ? ORDER BY scene_index').all(ep.id).map((s: any) => ({
+  sceneChars.forEach((c: any) => {
+    if (!charMap.has(c.scene_id)) charMap.set(c.scene_id, []);
+    charMap.get(c.scene_id)?.push(c.name);
+  });
+
+  // @ts-ignore
+  const scenes = scenesRaw.map((s: any) => ({
     ...s,
     id: s.scene_index, // Frontend expects logical ID (1, 2, 3) not DB row ID
     db_id: s.id,       // Keep track of internal ID if needed
-    characters: s.characters ? JSON.parse(s.characters) : []
+    characters: charMap.get(s.id) || (s.characters ? JSON.parse(s.characters) : [])
   }));
   res.json({ episode: ep, characters: chars, scenes });
 });
@@ -71,11 +82,23 @@ app.get('/api/episodes/:id', (req, res) => {
   const ep = db.prepare('SELECT * FROM episodes WHERE id = ?').get(req.params.id);
   if (!ep) return res.status(404).json({error: 'Not found'});
   const chars = db.prepare('SELECT * FROM characters WHERE episode_id = ?').all(req.params.id);
-  const scenes = db.prepare('SELECT * FROM scenes WHERE episode_id = ? ORDER BY scene_index').all(req.params.id).map((s: any) => ({
+
+  const scenesRaw = db.prepare('SELECT * FROM scenes WHERE episode_id = ? ORDER BY scene_index').all(req.params.id);
+  const sceneChars = db.prepare('SELECT scene_id, name FROM scene_characters WHERE episode_id = ?').all(req.params.id);
+
+  const charMap = new Map<number, string[]>();
+  // @ts-ignore
+  sceneChars.forEach((c: any) => {
+    if (!charMap.has(c.scene_id)) charMap.set(c.scene_id, []);
+    charMap.get(c.scene_id)?.push(c.name);
+  });
+
+  // @ts-ignore
+  const scenes = scenesRaw.map((s: any) => ({
     ...s,
     id: s.scene_index,
     db_id: s.id,
-    characters: s.characters ? JSON.parse(s.characters) : []
+    characters: charMap.get(s.id) || (s.characters ? JSON.parse(s.characters) : [])
   }));
   res.json({ episode: ep, characters: chars, scenes });
 });
@@ -91,13 +114,20 @@ app.post('/api/episodes/:id/analyze', async (req, res) => {
     // Transaction
     const insertChar = db.prepare('INSERT INTO characters (episode_id, name, description) VALUES (?, ?, ?)');
     const insertScene = db.prepare('INSERT INTO scenes (episode_id, scene_index, description, characters) VALUES (?, ?, ?, ?)');
+    const insertSceneChar = db.prepare('INSERT INTO scene_characters (episode_id, scene_id, name) VALUES (?, ?, ?)');
     
     db.transaction(() => {
       db.prepare('DELETE FROM characters WHERE episode_id = ?').run(ep.id);
+      db.prepare('DELETE FROM scene_characters WHERE episode_id = ?').run(ep.id);
       db.prepare('DELETE FROM scenes WHERE episode_id = ?').run(ep.id);
       
       data.characters.forEach((c: any) => insertChar.run(ep.id, c.name, c.description));
-      data.scenes.forEach((s: any) => insertScene.run(ep.id, s.id, s.description, JSON.stringify(s.characters)));
+      data.scenes.forEach((s: any) => {
+        const info = insertScene.run(ep.id, s.id, s.description, JSON.stringify([]));
+        s.characters.forEach((name: string) => {
+          insertSceneChar.run(ep.id, info.lastInsertRowid, name);
+        });
+      });
     })();
     
     res.json({ success: true });
