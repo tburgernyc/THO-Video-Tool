@@ -26,6 +26,9 @@ class GenerateRequest(BaseModel):
     negative_prompt: Optional[str] = "low quality, worst quality, deformed, distorted, watermark"
     image_base64: Optional[str] = None
 
+class BatchJobRequest(BaseModel):
+    job_ids: list[str]
+
 # In-memory job store (Use Redis for production)
 jobs = {}
 
@@ -181,6 +184,10 @@ def generate(req: GenerateRequest, background_tasks: BackgroundTasks):
     )
 
     return jobs[job_id]
+
+@app.post("/jobs/batch")
+def get_jobs_batch(req: BatchJobRequest):
+    return [jobs[jid] for jid in req.job_ids if jid in jobs]
 
 @app.get("/jobs/{job_id}")
 def get_job(job_id: str):

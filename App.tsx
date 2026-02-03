@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { ConfigTab } from './components/ConfigTab';
-import { ScriptTab } from './components/ScriptTab';
-import { CharactersTab } from './components/CharactersTab';
-import { ScenesTab } from './components/ScenesTab';
-import { VideosTab } from './components/VideosTab';
-import { ExportTab } from './components/ExportTab';
+import { useState, useEffect } from 'react';
+import { ConfigTab } from './ConfigTab';
+import { ScriptTab } from './ScriptTab';
+import { CharactersTab } from './CharactersTab';
+import { ScenesTab } from './ScenesTab';
+import { VideosTab } from './VideosTab';
+import { ExportTab } from './ExportTab';
 import { Episode, Character, Scene, SystemStatus } from './types';
 import { API_URL } from './config';
 

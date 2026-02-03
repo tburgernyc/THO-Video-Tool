@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Episode } from '../types';
-import { API_URL } from '../config';
+import { Episode } from './types';
+import { API_URL } from './config';
 
 interface Props {
   episode: Episode | null;

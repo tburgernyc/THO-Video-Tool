@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Scene, Job } from '../types';
-import { API_URL, ASSETS_URL } from '../config';
+import { Scene, Job } from './types';
+import { API_URL, ASSETS_URL } from './config';
 
 interface Props {
   scenes: Scene[];
@@ -22,15 +22,25 @@ export const VideosTab: React.FC<Props> = ({ scenes, episodeId }) => {
 
       if (activeJobIds.length === 0) return;
 
-      for (const jid of activeJobIds) {
-        try {
-          const res = await fetch(`${API_URL}/jobs/${jid}`);
-          const data = await res.json();
-          // Update job state
-          setJobs(prev => ({ ...prev, [data.sceneId]: data }));
-        } catch (e) {
-           console.error("Poll failed", e);
-        }
+      try {
+        const res = await fetch(`${API_URL}/jobs/batch`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jobIds: activeJobIds })
+        });
+        const updatedJobs: Job[] = await res.json();
+
+        setJobs(prev => {
+           const next = { ...prev };
+           updatedJobs.forEach(job => {
+             if (job && job.sceneId) {
+               next[job.sceneId] = job;
+             }
+           });
+           return next;
+        });
+      } catch (e) {
+         console.error("Poll failed", e);
       }
     }, 2000);
     return () => clearInterval(interval);

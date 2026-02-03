@@ -1,6 +1,6 @@
 import React from 'react';
-import { Episode, Scene } from '../types';
-import { ASSETS_URL } from '../config';
+import { Episode, Scene } from './types';
+import { ASSETS_URL } from './config';
 
 interface Props {
   episode: Episode | null;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { SystemStatus } from '../types';
+import { SystemStatus } from './types';
 
 interface Props {
   status: SystemStatus | null;
