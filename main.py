@@ -29,6 +29,9 @@ class GenerateRequest(BaseModel):
 # In-memory job store (Use Redis for production)
 jobs = {}
 
+# In-memory version cache to avoid O(N) directory scans
+version_cache = {}
+
 def process_video_generation(job_id: str, prompt: str, neg_prompt: str, ep_dir: str, scene_id: int, version: int, image_base64: Optional[str] = None):
     """
     Background task to handle video generation without blocking the API.
@@ -155,8 +158,14 @@ def generate(req: GenerateRequest, background_tasks: BackgroundTasks):
     os.makedirs(ep_dir, exist_ok=True)
     
     # Determine Versioning
-    existing = [f for f in os.listdir(ep_dir) if f.startswith(f"scene{req.scene_id}_") and f.endswith(".mp4")]
-    version = len(existing) + 1
+    cache_key = (req.episode_id, req.scene_id)
+    if cache_key in version_cache:
+        version_cache[cache_key] += 1
+        version = version_cache[cache_key]
+    else:
+        existing = [f for f in os.listdir(ep_dir) if f.startswith(f"scene{req.scene_id}_") and f.endswith(".mp4")]
+        version = len(existing) + 1
+        version_cache[cache_key] = version
     
     # Initialize Job
     jobs[job_id] = {
